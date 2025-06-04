@@ -44,6 +44,32 @@
         Quản Lý Chi Tiêu Theo Tuần
       </h1>
 
+      <!-- Khu vực chọn tiền tệ -->
+      <div class="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <label for="currency-select" class="text-lg font-semibold text-gray-700">Chọn tiền tệ:</label>
+        <select id="currency-select"
+          class="p-2 border border-gray-300 rounded-md text-lg focus:ring-blue-500 focus:border-blue-500">
+          <option value="VND">VNĐ</option>
+          <option value="USD">USD</option>
+          <option value="CAD">CAD</option>
+        </select>
+      </div>
+
+      <!-- Khu vực điều hướng tuần -->
+      <div class="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <button id="prev-week-btn"
+          class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition duration-200 ease-in-out text-base">
+          &lt; Tuần Trước
+        </button>
+        <span id="current-week-display" class="text-xl md:text-2xl font-bold text-gray-800 text-center flex-grow">
+          Tuần: Đang tải...
+        </span>
+        <button id="next-week-btn"
+          class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition duration-200 ease-in-out text-base">
+          Tuần Sau &gt;
+        </button>
+      </div>
+
       <!-- Khu vực nhập liệu cho từng ngày -->
       <div id="week-data" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <!-- Dữ liệu cho từng ngày sẽ được JavaScript tạo ra tại đây -->
@@ -74,10 +100,6 @@
           class="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 transition duration-200 ease-in-out text-lg">
           Lưu Dữ Liệu
         </button>
-        <button id="load-btn"
-          class="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75 transition duration-200 ease-in-out text-lg">
-          Tải Dữ Liệu
-        </button>
         <button id="clear-btn"
           class="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition duration-200 ease-in-out text-lg">
           Xóa Dữ Liệu
@@ -92,20 +114,25 @@
     </div>
 
     <script>
-      // Mảng chứa tên các ngày trong tuần
-      const daysOfWeek = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
+      // Mảng chứa tên các ngày trong tuần (Thứ Hai đến Chủ Nhật)
+      const daysOfWeekNames = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
 
-      // Mảng lưu trữ dữ liệu chi tiêu/doanh thu của tuần
-      // Mỗi phần tử là một đối tượng { revenue: number, expense: number }
-      let weeklyData = [];
+      // Biến lưu trữ dữ liệu chi tiêu/doanh thu của tuần hiện tại
+      let weeklyData = []; // Sẽ là mảng 7 đối tượng: { dayName: string, date: string, revenue: number, expense: number }
+
+      // Biến lưu trữ loại tiền tệ đang chọn
+      let selectedCurrency = 'VND';
+
+      // Biến lưu trữ ngày đầu tiên của tuần hiện tại (luôn là Thứ Hai)
+      let currentWeekStartDate = new Date(); // Sẽ được cập nhật thành Thứ Hai của tuần hiện tại
 
       // --- Các hàm tiện ích ---
 
-      // Hàm định dạng số thành tiền tệ (VNĐ)
-      function formatCurrency(amount) {
+      // Hàm định dạng số thành tiền tệ (VNĐ, USD, CAD)
+      function formatCurrency(amount, currencyCode = selectedCurrency) {
         return new Intl.NumberFormat('vi-VN', {
           style: 'currency',
-          currency: 'VND',
+          currency: currencyCode,
           minimumFractionDigits: 0
         }).format(amount);
       }
@@ -131,11 +158,48 @@
         }, 3000); // Ẩn sau 3 giây
       }
 
-      // --- Logic chính của ứng dụng ---
+      // Hàm lấy ngày Thứ Hai của tuần chứa một ngày cho trước
+      function getMonday(d) {
+        d = new Date(d); // Tạo bản sao để không làm thay đổi ngày gốc
+        const day = d.getDay(); // 0 = Chủ Nhật, 1 = Thứ Hai, ..., 6 = Thứ Bảy
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Điều chỉnh để Thứ Hai là ngày đầu tuần
+        d.setDate(diff);
+        d.setHours(0, 0, 0, 0); // Đặt về đầu ngày để tránh lỗi múi giờ
+        return d;
+      }
 
-      // Hàm khởi tạo dữ liệu tuần với giá trị 0
-      function initializeWeeklyData() {
-        weeklyData = daysOfWeek.map(() => ({ revenue: 0, expense: 0 }));
+      // Hàm định dạng đối tượng Date thành chuỗi YYYY-MM-DD
+      function formatDateToYYYYMMDD(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      // Hàm khởi tạo dữ liệu tuần với giá trị 0 và ngày tháng chính xác
+      function initializeWeeklyData(startDate) {
+        weeklyData = [];
+        let currentDay = new Date(startDate); // Bắt đầu từ Thứ Hai của tuần
+
+        for (let i = 0; i < 7; i++) {
+          weeklyData.push({
+            dayName: daysOfWeekNames[i],
+            date: formatDateToYYYYMMDD(currentDay),
+            revenue: 0,
+            expense: 0
+          });
+          currentDay.setDate(currentDay.getDate() + 1); // Tăng ngày lên 1
+        }
+      }
+
+      // Hàm cập nhật hiển thị tuần hiện tại
+      function updateWeekDisplay() {
+        const monday = new Date(currentWeekStartDate);
+        const sunday = new Date(currentWeekStartDate);
+        sunday.setDate(monday.getDate() + 6); // Chủ Nhật là 6 ngày sau Thứ Hai
+
+        const displayString = `Tuần: ${monday.toLocaleDateString('vi-VN')} - ${sunday.toLocaleDateString('vi-VN')}`;
+        document.getElementById('current-week-display').textContent = displayString;
       }
 
       // Hàm tạo và hiển thị các trường nhập liệu cho từng ngày
@@ -143,24 +207,24 @@
         const weekDataContainer = document.getElementById('week-data');
         weekDataContainer.innerHTML = ''; // Xóa nội dung cũ trước khi render lại
 
-        daysOfWeek.forEach((dayName, index) => {
+        weeklyData.forEach((dayData, index) => {
           const dayEntry = document.createElement('div');
           dayEntry.className = 'day-entry bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col space-y-2';
 
-          // Tên ngày
+          // Tên ngày và Ngày cụ thể
           const dayTitle = document.createElement('h3');
           dayTitle.className = 'text-lg md:text-xl font-semibold text-gray-800 text-center mb-2';
-          dayTitle.textContent = dayName;
+          dayTitle.textContent = `${dayData.dayName} (${new Date(dayData.date).toLocaleDateString('vi-VN')})`;
           dayEntry.appendChild(dayTitle);
 
           // Input Doanh thu
           const revenueLabel = document.createElement('label');
           revenueLabel.className = 'text-gray-600 text-sm';
-          revenueLabel.textContent = 'Doanh thu (VNĐ):';
+          revenueLabel.textContent = 'Doanh thu:';
           const revenueInput = document.createElement('input');
           revenueInput.type = 'number';
           revenueInput.min = '0';
-          revenueInput.value = weeklyData[index].revenue;
+          revenueInput.value = dayData.revenue;
           revenueInput.className = 'revenue-input w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-lg';
           revenueInput.placeholder = 'Nhập doanh thu';
           revenueInput.addEventListener('input', (event) => handleInputChange(event, index, 'revenue'));
@@ -170,11 +234,11 @@
           // Input Chi tiêu
           const expenseLabel = document.createElement('label');
           expenseLabel.className = 'text-gray-600 text-sm mt-2';
-          expenseLabel.textContent = 'Chi tiêu (VNĐ):';
+          expenseLabel.textContent = 'Chi tiêu:';
           const expenseInput = document.createElement('input');
           expenseInput.type = 'number';
           expenseInput.min = '0';
-          expenseInput.value = weeklyData[index].expense;
+          expenseInput.value = dayData.expense;
           expenseInput.className = 'expense-input w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-lg';
           expenseInput.placeholder = 'Nhập chi tiêu';
           expenseInput.addEventListener('input', (event) => handleInputChange(event, index, 'expense'));
@@ -195,6 +259,7 @@
           weeklyData[dayIndex][type] = value;
         }
         calculateTotals(); // Tính toán lại tổng sau mỗi lần thay đổi
+        saveData(); // Tự động lưu khi có thay đổi
       }
 
       // Hàm tính toán tổng doanh thu, tổng chi tiêu và thu nhập ròng
@@ -226,11 +291,17 @@
         }
       }
 
+      // Hàm tạo khóa lưu trữ dựa trên ngày bắt đầu tuần và loại tiền tệ
+      function getStorageKey() {
+        return `weeklyExpenseData_${formatDateToYYYYMMDD(currentWeekStartDate)}_${selectedCurrency}`;
+      }
+
       // Hàm lưu dữ liệu vào Local Storage
       function saveData() {
         try {
-          localStorage.setItem('weeklyExpenseData', JSON.stringify(weeklyData));
-          showMessage('Dữ liệu đã được lưu thành công!', 'success');
+          localStorage.setItem(getStorageKey(), JSON.stringify(weeklyData));
+          localStorage.setItem('selectedCurrency', selectedCurrency); // Lưu loại tiền tệ đã chọn
+          showMessage('Dữ liệu đã được lưu tự động!', 'success');
         } catch (e) {
           showMessage('Lỗi khi lưu dữ liệu. Bộ nhớ trình duyệt có thể đầy.', 'error');
           console.error("Lỗi khi lưu dữ liệu vào localStorage:", e);
@@ -240,42 +311,81 @@
       // Hàm tải dữ liệu từ Local Storage
       function loadData() {
         try {
-          const storedData = localStorage.getItem('weeklyExpenseData');
+          const storedData = localStorage.getItem(getStorageKey());
           if (storedData) {
             weeklyData = JSON.parse(storedData);
-            renderDailyInputs(); // Render lại input với dữ liệu đã tải
-            calculateTotals(); // Tính toán lại tổng
             showMessage('Dữ liệu đã được tải thành công!', 'success');
           } else {
-            showMessage('Không tìm thấy dữ liệu đã lưu.', 'info');
+            // Nếu không có dữ liệu lưu trữ cho tuần này, khởi tạo mới
+            initializeWeeklyData(currentWeekStartDate);
+            showMessage('Không tìm thấy dữ liệu đã lưu cho tuần này. Đã tạo dữ liệu mới.', 'info');
           }
+          renderDailyInputs(); // Render lại input với dữ liệu đã tải/khởi tạo
+          calculateTotals(); // Tính toán lại tổng
         } catch (e) {
           showMessage('Lỗi khi tải dữ liệu. Dữ liệu lưu trữ có thể bị hỏng.', 'error');
           console.error("Lỗi khi tải dữ liệu từ localStorage:", e);
+          initializeWeeklyData(currentWeekStartDate); // Reset nếu lỗi
+          renderDailyInputs();
+          calculateTotals();
         }
       }
 
-      // Hàm xóa dữ liệu và reset ứng dụng
+      // Hàm xóa dữ liệu của tuần hiện tại
       function clearData() {
-        if (confirm('Bạn có chắc chắn muốn xóa tất cả dữ liệu? Hành động này không thể hoàn tác.')) {
-          localStorage.removeItem('weeklyExpenseData');
-          initializeWeeklyData(); // Khởi tạo lại dữ liệu về 0
+        if (confirm('Bạn có chắc chắn muốn xóa tất cả dữ liệu của tuần hiện tại? Hành động này không thể hoàn tác.')) {
+          localStorage.removeItem(getStorageKey());
+          initializeWeeklyData(currentWeekStartDate); // Khởi tạo lại dữ liệu về 0
           renderDailyInputs(); // Render lại input trống
           calculateTotals(); // Tính toán lại tổng về 0
-          showMessage('Tất cả dữ liệu đã được xóa!', 'info');
+          showMessage('Dữ liệu tuần hiện tại đã được xóa!', 'info');
         }
+      }
+
+      // Hàm điều hướng tuần (trước/sau)
+      function navigateToWeek(direction) {
+        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 tuần tính bằng mili giây
+        if (direction === 'prev') {
+          currentWeekStartDate.setTime(currentWeekStartDate.getTime() - oneWeek);
+        } else { // 'next'
+          currentWeekStartDate.setTime(currentWeekStartDate.getTime() + oneWeek);
+        }
+        // Đảm bảo currentWeekStartDate luôn là Thứ Hai của tuần đó
+        currentWeekStartDate = getMonday(currentWeekStartDate);
+        updateWeekDisplay(); // Cập nhật hiển thị tuần
+        loadData(); // Tải dữ liệu cho tuần mới
       }
 
       // --- Khởi tạo ứng dụng khi trang web tải xong ---
       document.addEventListener('DOMContentLoaded', () => {
-        // Gắn sự kiện cho các nút
+        // Lấy loại tiền tệ đã chọn từ localStorage (nếu có)
+        const storedCurrency = localStorage.getItem('selectedCurrency');
+        if (storedCurrency) {
+          selectedCurrency = storedCurrency;
+          document.getElementById('currency-select').value = storedCurrency;
+        }
+
+        // Gắn sự kiện cho dropdown chọn tiền tệ
+        document.getElementById('currency-select').addEventListener('change', (event) => {
+          selectedCurrency = event.target.value;
+          saveData(); // Lưu loại tiền tệ mới
+          calculateTotals(); // Cập nhật hiển thị tổng kết với tiền tệ mới
+        });
+
+        // Gắn sự kiện cho các nút điều hướng tuần
+        document.getElementById('prev-week-btn').addEventListener('click', () => navigateToWeek('prev'));
+        document.getElementById('next-week-btn').addEventListener('click', () => navigateToWeek('next'));
+
+        // Gắn sự kiện cho các nút điều khiển chính
         document.getElementById('save-btn').addEventListener('click', saveData);
-        document.getElementById('load-btn').addEventListener('click', loadData);
         document.getElementById('clear-btn').addEventListener('click', clearData);
 
-        // Khởi tạo dữ liệu và tải nếu có
-        initializeWeeklyData();
-        loadData(); // Tải dữ liệu khi khởi động
+        // Khởi tạo tuần hiện tại (Thứ Hai của tuần hiện tại)
+        currentWeekStartDate = getMonday(new Date());
+        updateWeekDisplay(); // Cập nhật hiển thị tuần ban đầu
+
+        // Tải dữ liệu khi khởi động
+        loadData();
       });
     </script>
   </body>
