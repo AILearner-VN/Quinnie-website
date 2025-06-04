@@ -35,6 +35,17 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #64748b;
       }
+
+      /* Ẩn input type number mũi tên điều khiển */
+      input[type='number']::-webkit-inner-spin-button,
+      input[type='number']::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      input[type='number'] {
+        -moz-appearance: textfield;
+      }
     </style>
   </head>
 
@@ -43,17 +54,6 @@
       <h1 class="text-3xl md:text-4xl font-extrabold text-center text-blue-700 mb-6 md:mb-8">
         Quản Lý Chi Tiêu Theo Tuần
       </h1>
-
-      <!-- Khu vực chọn tiền tệ -->
-      <div class="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <label for="currency-select" class="text-lg font-semibold text-gray-700">Chọn tiền tệ:</label>
-        <select id="currency-select"
-          class="p-2 border border-gray-300 rounded-md text-lg focus:ring-blue-500 focus:border-blue-500">
-          <option value="VND">VNĐ</option>
-          <option value="USD">USD</option>
-          <option value="CAD">CAD</option>
-        </select>
-      </div>
 
       <!-- Khu vực điều hướng tuần -->
       <div class="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -75,22 +75,27 @@
         <!-- Dữ liệu cho từng ngày sẽ được JavaScript tạo ra tại đây -->
       </div>
 
-      <!-- Khu vực tổng kết -->
+      <!-- Khu vực tổng kết dạng bảng -->
       <div id="summary-section" class="bg-blue-50 p-5 rounded-lg shadow-inner mb-6 border border-blue-200">
         <h2 class="text-xl md:text-2xl font-bold text-blue-800 mb-4 text-center">Tổng Kết Tuần</h2>
-        <div class="space-y-3 text-lg md:text-xl">
-          <div class="flex justify-between items-center">
-            <span class="font-semibold text-gray-700">Tổng Doanh Thu:</span>
-            <span id="total-revenue" class="font-bold text-green-600">0 VNĐ</span>
-          </div>
-          <div class="flex justify-between items-center">
-            <span class="font-semibold text-gray-700">Tổng Chi Tiêu:</span>
-            <span id="total-expense" class="font-bold text-red-600">0 VNĐ</span>
-          </div>
-          <div class="flex justify-between items-center pt-3 border-t border-blue-300">
-            <span class="font-bold text-blue-800">Thu Nhập Ròng:</span>
-            <span id="net-income" class="font-bold text-blue-800">0 VNĐ</span>
-          </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full bg-white rounded-lg overflow-hidden">
+            <thead class="bg-blue-200 text-blue-800">
+              <tr>
+                <th class="py-3 px-4 text-left text-sm font-bold uppercase tracking-wider">Ngày tháng</th>
+                <th class="py-3 px-4 text-right text-sm font-bold uppercase tracking-wider">Thu nhập ròng</th>
+              </tr>
+            </thead>
+            <tbody id="summary-table-body" class="divide-y divide-gray-200">
+              <!-- Dữ liệu tổng kết từng ngày sẽ được JS thêm vào đây -->
+            </tbody>
+            <tfoot class="bg-blue-100 text-blue-900 font-bold">
+              <tr>
+                <td class="py-3 px-4 text-left text-lg">Tổng cộng</td>
+                <td id="total-net-income-summary" class="py-3 px-4 text-right text-lg">0 VNĐ</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
@@ -102,7 +107,7 @@
         </button>
         <button id="clear-btn"
           class="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition duration-200 ease-in-out text-lg">
-          Xóa Dữ Liệu
+          Xóa Dữ Liệu Tuần Này
         </button>
       </div>
 
@@ -114,22 +119,20 @@
     </div>
 
     <script>
-      // Mảng chứa tên các ngày trong tuần (Thứ Hai đến Chủ Nhật)
+      // Array containing names of days of the week (Monday to Sunday)
       const daysOfWeekNames = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
 
-      // Biến lưu trữ dữ liệu chi tiêu/doanh thu của tuần hiện tại
-      let weeklyData = []; // Sẽ là mảng 7 đối tượng: { dayName: string, date: string, revenue: number, expense: number }
+      // Variable to store the current week's expense/revenue data
+      // Each element is an object: { dayName: string, date: string, revenue: number, expense: number, hasExpense: boolean }
+      let weeklyData = [];
 
-      // Biến lưu trữ loại tiền tệ đang chọn
-      let selectedCurrency = 'VND';
+      // Variable to store the first day of the current week (always Monday)
+      let currentWeekStartDate = new Date(); // Will be updated to the Monday of the current week
 
-      // Biến lưu trữ ngày đầu tiên của tuần hiện tại (luôn là Thứ Hai)
-      let currentWeekStartDate = new Date(); // Sẽ được cập nhật thành Thứ Hai của tuần hiện tại
+      // --- Utility functions ---
 
-      // --- Các hàm tiện ích ---
-
-      // Hàm định dạng số thành tiền tệ (VNĐ, USD, CAD)
-      function formatCurrency(amount, currencyCode = selectedCurrency) {
+      // Function to format numbers as currency (VNĐ by default, as currency selection is removed)
+      function formatCurrency(amount, currencyCode = 'CAD') {
         return new Intl.NumberFormat('vi-VN', {
           style: 'currency',
           currency: currencyCode,
@@ -137,7 +140,7 @@
         }).format(amount);
       }
 
-      // Hàm hiển thị thông báo tạm thời cho người dùng
+      // Function to display temporary messages to the user
       function showMessage(message, type = 'info') {
         const msgBox = document.getElementById('message-box');
         msgBox.textContent = message;
@@ -155,20 +158,20 @@
         setTimeout(() => {
           msgBox.classList.remove('opacity-100');
           msgBox.classList.add('opacity-0');
-        }, 3000); // Ẩn sau 3 giây
+        }, 3000); // Hide after 3 seconds
       }
 
-      // Hàm lấy ngày Thứ Hai của tuần chứa một ngày cho trước
+      // Function to get the Monday of the week containing a given date
       function getMonday(d) {
-        d = new Date(d); // Tạo bản sao để không làm thay đổi ngày gốc
-        const day = d.getDay(); // 0 = Chủ Nhật, 1 = Thứ Hai, ..., 6 = Thứ Bảy
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Điều chỉnh để Thứ Hai là ngày đầu tuần
+        d = new Date(d); // Create a copy to avoid modifying the original date
+        const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday as start of week
         d.setDate(diff);
-        d.setHours(0, 0, 0, 0); // Đặt về đầu ngày để tránh lỗi múi giờ
+        d.setHours(0, 0, 0, 0); // Set to start of day to avoid timezone issues
         return d;
       }
 
-      // Hàm định dạng đối tượng Date thành chuỗi YYYY-MM-DD
+      // Function to format a Date object to YYYY-MM-DD string
       function formatDateToYYYYMMDD(date) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -176,51 +179,52 @@
         return `${year}-${month}-${day}`;
       }
 
-      // Hàm khởi tạo dữ liệu tuần với giá trị 0 và ngày tháng chính xác
+      // Function to initialize weekly data with 0 values and correct dates
       function initializeWeeklyData(startDate) {
         weeklyData = [];
-        let currentDay = new Date(startDate); // Bắt đầu từ Thứ Hai của tuần
+        let currentDay = new Date(startDate); // Start from Monday of the week
 
         for (let i = 0; i < 7; i++) {
           weeklyData.push({
             dayName: daysOfWeekNames[i],
             date: formatDateToYYYYMMDD(currentDay),
             revenue: 0,
-            expense: 0
+            expense: 0,
+            hasExpense: false // New field: default to no expense
           });
-          currentDay.setDate(currentDay.getDate() + 1); // Tăng ngày lên 1
+          currentDay.setDate(currentDay.getDate() + 1); // Increment day by 1
         }
       }
 
-      // Hàm cập nhật hiển thị tuần hiện tại
+      // Function to update the current week display
       function updateWeekDisplay() {
         const monday = new Date(currentWeekStartDate);
         const sunday = new Date(currentWeekStartDate);
-        sunday.setDate(monday.getDate() + 6); // Chủ Nhật là 6 ngày sau Thứ Hai
+        sunday.setDate(monday.getDate() + 6); // Sunday is 6 days after Monday
 
         const displayString = `Tuần: ${monday.toLocaleDateString('vi-VN')} - ${sunday.toLocaleDateString('vi-VN')}`;
         document.getElementById('current-week-display').textContent = displayString;
       }
 
-      // Hàm tạo và hiển thị các trường nhập liệu cho từng ngày
+      // Function to create and render input fields for each day
       function renderDailyInputs() {
         const weekDataContainer = document.getElementById('week-data');
-        weekDataContainer.innerHTML = ''; // Xóa nội dung cũ trước khi render lại
+        weekDataContainer.innerHTML = ''; // Clear old content before re-rendering
 
         weeklyData.forEach((dayData, index) => {
           const dayEntry = document.createElement('div');
           dayEntry.className = 'day-entry bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col space-y-2';
 
-          // Tên ngày và Ngày cụ thể
+          // Day Name and Specific Date
           const dayTitle = document.createElement('h3');
           dayTitle.className = 'text-lg md:text-xl font-semibold text-gray-800 text-center mb-2';
           dayTitle.textContent = `${dayData.dayName} (${new Date(dayData.date).toLocaleDateString('vi-VN')})`;
           dayEntry.appendChild(dayTitle);
 
-          // Input Doanh thu
+          // Revenue Input
           const revenueLabel = document.createElement('label');
           revenueLabel.className = 'text-gray-600 text-sm';
-          revenueLabel.textContent = 'Doanh thu:';
+          revenueLabel.textContent = 'Doanh thu (VNĐ):';
           const revenueInput = document.createElement('input');
           revenueInput.type = 'number';
           revenueInput.min = '0';
@@ -231,10 +235,31 @@
           dayEntry.appendChild(revenueLabel);
           dayEntry.appendChild(revenueInput);
 
-          // Input Chi tiêu
+          // "Thêm chi phí" Checkbox
+          const addExpenseContainer = document.createElement('div');
+          addExpenseContainer.className = 'flex items-center mt-2';
+          const addExpenseCheckbox = document.createElement('input');
+          addExpenseCheckbox.type = 'checkbox';
+          addExpenseCheckbox.id = `add-expense-${index}`;
+          addExpenseCheckbox.checked = dayData.hasExpense;
+          addExpenseCheckbox.className = 'mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded';
+          addExpenseCheckbox.addEventListener('change', (event) => toggleExpenseInput(event, index));
+          const addExpenseLabel = document.createElement('label');
+          addExpenseLabel.htmlFor = `add-expense-${index}`;
+          addExpenseLabel.className = 'text-gray-700 text-base cursor-pointer';
+          addExpenseLabel.textContent = 'Thêm chi phí';
+          addExpenseContainer.appendChild(addExpenseCheckbox);
+          addExpenseContainer.appendChild(addExpenseLabel);
+          dayEntry.appendChild(addExpenseContainer);
+
+          // Expense Input (conditionally visible)
+          const expenseInputWrapper = document.createElement('div');
+          expenseInputWrapper.id = `expense-input-wrapper-${index}`;
+          expenseInputWrapper.className = `flex flex-col space-y-2 mt-2 ${dayData.hasExpense ? '' : 'hidden'}`;
+
           const expenseLabel = document.createElement('label');
-          expenseLabel.className = 'text-gray-600 text-sm mt-2';
-          expenseLabel.textContent = 'Chi tiêu:';
+          expenseLabel.className = 'text-gray-600 text-sm';
+          expenseLabel.textContent = 'Chi tiêu (VNĐ):';
           const expenseInput = document.createElement('input');
           expenseInput.type = 'number';
           expenseInput.min = '0';
@@ -242,65 +267,95 @@
           expenseInput.className = 'expense-input w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-lg';
           expenseInput.placeholder = 'Nhập chi tiêu';
           expenseInput.addEventListener('input', (event) => handleInputChange(event, index, 'expense'));
-          dayEntry.appendChild(expenseLabel);
-          dayEntry.appendChild(expenseInput);
+
+          expenseInputWrapper.appendChild(expenseLabel);
+          expenseInputWrapper.appendChild(expenseInput);
+          dayEntry.appendChild(expenseInputWrapper);
 
           weekDataContainer.appendChild(dayEntry);
         });
       }
 
-      // Hàm xử lý sự kiện khi giá trị input thay đổi
+      // Function to toggle visibility of expense input
+      function toggleExpenseInput(event, dayIndex) {
+        const isChecked = event.target.checked;
+        weeklyData[dayIndex].hasExpense = isChecked;
+        const expenseInputWrapper = document.getElementById(`expense-input-wrapper-${dayIndex}`);
+        const expenseInput = expenseInputWrapper.querySelector('.expense-input');
+
+        if (isChecked) {
+          expenseInputWrapper.classList.remove('hidden');
+        } else {
+          expenseInputWrapper.classList.add('hidden');
+          // Optionally reset expense to 0 when hidden
+          weeklyData[dayIndex].expense = 0;
+          expenseInput.value = 0;
+        }
+        calculateTotals(); // Recalculate totals
+        saveData(); // Save changes
+      }
+
+      // Function to handle input changes (revenue/expense)
       function handleInputChange(event, dayIndex, type) {
-        const value = parseInt(event.target.value) || 0; // Chuyển đổi sang số nguyên, nếu không phải số thì là 0
-        if (value < 0) { // Đảm bảo không nhập số âm
+        const value = parseInt(event.target.value) || 0; // Convert to integer, default to 0 if not a number
+        if (value < 0) { // Ensure no negative numbers
           event.target.value = 0;
           weeklyData[dayIndex][type] = 0;
         } else {
           weeklyData[dayIndex][type] = value;
         }
-        calculateTotals(); // Tính toán lại tổng sau mỗi lần thay đổi
-        saveData(); // Tự động lưu khi có thay đổi
+        calculateTotals(); // Recalculate totals after each change
+        saveData(); // Auto-save on change
       }
 
-      // Hàm tính toán tổng doanh thu, tổng chi tiêu và thu nhập ròng
+      // Function to calculate totals and render the summary table
       function calculateTotals() {
-        let totalRevenue = 0;
-        let totalExpense = 0;
+        let totalNetIncome = 0;
+        const summaryTableBody = document.getElementById('summary-table-body');
+        summaryTableBody.innerHTML = ''; // Clear old table rows
 
         weeklyData.forEach(day => {
-          totalRevenue += day.revenue;
-          totalExpense += day.expense;
+          const dailyNetIncome = day.revenue - (day.hasExpense ? day.expense : 0); // Only subtract expense if hasExpense is true
+          totalNetIncome += dailyNetIncome;
+
+          const row = document.createElement('tr');
+          row.className = 'bg-white hover:bg-gray-50';
+
+          const dateCell = document.createElement('td');
+          dateCell.className = 'py-2 px-4 text-sm font-medium text-gray-900';
+          dateCell.textContent = `${day.dayName} (${new Date(day.date).toLocaleDateString('vi-VN')})`;
+          row.appendChild(dateCell);
+
+          const netIncomeCell = document.createElement('td');
+          netIncomeCell.className = `py-2 px-4 text-right text-sm font-medium ${dailyNetIncome >= 0 ? 'text-green-600' : 'text-red-600'}`;
+          netIncomeCell.textContent = formatCurrency(dailyNetIncome);
+          row.appendChild(netIncomeCell);
+
+          summaryTableBody.appendChild(row);
         });
 
-        const netIncome = totalRevenue - totalExpense;
-
-        // Cập nhật giao diện tổng kết
-        document.getElementById('total-revenue').textContent = formatCurrency(totalRevenue);
-        document.getElementById('total-expense').textContent = formatCurrency(totalExpense);
-        document.getElementById('net-income').textContent = formatCurrency(netIncome);
-
-        // Thay đổi màu sắc thu nhập ròng
-        const netIncomeSpan = document.getElementById('net-income');
-        netIncomeSpan.classList.remove('text-green-600', 'text-red-600', 'text-blue-800');
-        if (netIncome > 0) {
-          netIncomeSpan.classList.add('text-green-600');
-        } else if (netIncome < 0) {
-          netIncomeSpan.classList.add('text-red-600');
+        // Update total net income in the table footer
+        const totalNetIncomeSummarySpan = document.getElementById('total-net-income-summary');
+        totalNetIncomeSummarySpan.textContent = formatCurrency(totalNetIncome);
+        totalNetIncomeSummarySpan.classList.remove('text-green-600', 'text-red-600', 'text-blue-900');
+        if (totalNetIncome > 0) {
+          totalNetIncomeSummarySpan.classList.add('text-green-600');
+        } else if (totalNetIncome < 0) {
+          totalNetIncomeSummarySpan.classList.add('text-red-600');
         } else {
-          netIncomeSpan.classList.add('text-blue-800');
+          totalNetIncomeSummarySpan.classList.add('text-blue-900');
         }
       }
 
-      // Hàm tạo khóa lưu trữ dựa trên ngày bắt đầu tuần và loại tiền tệ
+      // Function to create storage key based on week start date
       function getStorageKey() {
-        return `weeklyExpenseData_${formatDateToYYYYMMDD(currentWeekStartDate)}_${selectedCurrency}`;
+        return `weeklyExpenseData_${formatDateToYYYYMMDD(currentWeekStartDate)}`;
       }
 
-      // Hàm lưu dữ liệu vào Local Storage
+      // Function to save data to Local Storage
       function saveData() {
         try {
           localStorage.setItem(getStorageKey(), JSON.stringify(weeklyData));
-          localStorage.setItem('selectedCurrency', selectedCurrency); // Lưu loại tiền tệ đã chọn
           showMessage('Dữ liệu đã được lưu tự động!', 'success');
         } catch (e) {
           showMessage('Lỗi khi lưu dữ liệu. Bộ nhớ trình duyệt có thể đầy.', 'error');
@@ -308,83 +363,75 @@
         }
       }
 
-      // Hàm tải dữ liệu từ Local Storage
+      // Function to load data from Local Storage
       function loadData() {
         try {
           const storedData = localStorage.getItem(getStorageKey());
           if (storedData) {
             weeklyData = JSON.parse(storedData);
+            // Ensure hasExpense property exists for old data (if loading from older version)
+            weeklyData.forEach(day => {
+              if (typeof day.hasExpense === 'undefined') {
+                day.hasExpense = false; // Default to false if not present
+              }
+            });
             showMessage('Dữ liệu đã được tải thành công!', 'success');
           } else {
-            // Nếu không có dữ liệu lưu trữ cho tuần này, khởi tạo mới
+            // If no stored data for this week, initialize new
             initializeWeeklyData(currentWeekStartDate);
             showMessage('Không tìm thấy dữ liệu đã lưu cho tuần này. Đã tạo dữ liệu mới.', 'info');
           }
-          renderDailyInputs(); // Render lại input với dữ liệu đã tải/khởi tạo
-          calculateTotals(); // Tính toán lại tổng
+          renderDailyInputs(); // Re-render inputs with loaded/initialized data
+          calculateTotals(); // Recalculate totals
         } catch (e) {
           showMessage('Lỗi khi tải dữ liệu. Dữ liệu lưu trữ có thể bị hỏng.', 'error');
           console.error("Lỗi khi tải dữ liệu từ localStorage:", e);
-          initializeWeeklyData(currentWeekStartDate); // Reset nếu lỗi
+          initializeWeeklyData(currentWeekStartDate); // Reset if error
           renderDailyInputs();
           calculateTotals();
         }
       }
 
-      // Hàm xóa dữ liệu của tuần hiện tại
+      // Function to clear data for the current week
       function clearData() {
         if (confirm('Bạn có chắc chắn muốn xóa tất cả dữ liệu của tuần hiện tại? Hành động này không thể hoàn tác.')) {
           localStorage.removeItem(getStorageKey());
-          initializeWeeklyData(currentWeekStartDate); // Khởi tạo lại dữ liệu về 0
-          renderDailyInputs(); // Render lại input trống
-          calculateTotals(); // Tính toán lại tổng về 0
+          initializeWeeklyData(currentWeekStartDate); // Re-initialize data to 0
+          renderDailyInputs(); // Re-render empty inputs
+          calculateTotals(); // Recalculate totals to 0
           showMessage('Dữ liệu tuần hiện tại đã được xóa!', 'info');
         }
       }
 
-      // Hàm điều hướng tuần (trước/sau)
+      // Function to navigate weeks (previous/next)
       function navigateToWeek(direction) {
-        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 tuần tính bằng mili giây
+        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
         if (direction === 'prev') {
           currentWeekStartDate.setTime(currentWeekStartDate.getTime() - oneWeek);
         } else { // 'next'
           currentWeekStartDate.setTime(currentWeekStartDate.getTime() + oneWeek);
         }
-        // Đảm bảo currentWeekStartDate luôn là Thứ Hai của tuần đó
+        // Ensure currentWeekStartDate is always the Monday of that week
         currentWeekStartDate = getMonday(currentWeekStartDate);
-        updateWeekDisplay(); // Cập nhật hiển thị tuần
-        loadData(); // Tải dữ liệu cho tuần mới
+        updateWeekDisplay(); // Update week display
+        loadData(); // Load data for the new week
       }
 
-      // --- Khởi tạo ứng dụng khi trang web tải xong ---
+      // --- Initialize application when the web page loads ---
       document.addEventListener('DOMContentLoaded', () => {
-        // Lấy loại tiền tệ đã chọn từ localStorage (nếu có)
-        const storedCurrency = localStorage.getItem('selectedCurrency');
-        if (storedCurrency) {
-          selectedCurrency = storedCurrency;
-          document.getElementById('currency-select').value = storedCurrency;
-        }
-
-        // Gắn sự kiện cho dropdown chọn tiền tệ
-        document.getElementById('currency-select').addEventListener('change', (event) => {
-          selectedCurrency = event.target.value;
-          saveData(); // Lưu loại tiền tệ mới
-          calculateTotals(); // Cập nhật hiển thị tổng kết với tiền tệ mới
-        });
-
-        // Gắn sự kiện cho các nút điều hướng tuần
+        // Attach events for week navigation buttons
         document.getElementById('prev-week-btn').addEventListener('click', () => navigateToWeek('prev'));
         document.getElementById('next-week-btn').addEventListener('click', () => navigateToWeek('next'));
 
-        // Gắn sự kiện cho các nút điều khiển chính
+        // Attach events for main control buttons
         document.getElementById('save-btn').addEventListener('click', saveData);
         document.getElementById('clear-btn').addEventListener('click', clearData);
 
-        // Khởi tạo tuần hiện tại (Thứ Hai của tuần hiện tại)
+        // Initialize current week (Monday of the current week)
         currentWeekStartDate = getMonday(new Date());
-        updateWeekDisplay(); // Cập nhật hiển thị tuần ban đầu
+        updateWeekDisplay(); // Update initial week display
 
-        // Tải dữ liệu khi khởi động
+        // Load data on startup
         loadData();
       });
     </script>
