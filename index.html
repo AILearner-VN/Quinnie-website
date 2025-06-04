@@ -1,30 +1,283 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quinnie's Clock</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Quản Lý Chi Tiêu Theo Tuần</title>
+    <!-- Tải Tailwind CSS cho styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Định nghĩa font Inter */
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f0f4f8;
+        /* Màu nền nhẹ nhàng */
+      }
+
+      /* Tùy chỉnh thanh cuộn (scrollbar) cho giao diện thân thiện hơn */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: #e2e8f0;
+        border-radius: 10px;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border-radius: 10px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+      }
+    </style>
   </head>
 
-  <body>
-    <div id="clock-container">
-      <div id="clock">00:00:00 </div>
-    </div>
-    <div class="controls">
-      <div id="alarm-controls">
-        <label for="alarm-time">Set Alarm:</label>
-        <input type="time" id="alarm-time">
-        <button onclick="setAlarm()">Set</button>
-        <button onclick="clearAlarm()">Clear</button>
-        <p id="alarm-status"></p>
+  <body class="flex items-center justify-center min-h-screen p-4">
+    <div id="app-container" class="bg-white rounded-xl shadow-2xl p-6 md:p-8 w-full max-w-4xl">
+      <h1 class="text-3xl md:text-4xl font-extrabold text-center text-blue-700 mb-6 md:mb-8">
+        Quản Lý Chi Tiêu Theo Tuần
+      </h1>
+
+      <!-- Khu vực nhập liệu cho từng ngày -->
+      <div id="week-data" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <!-- Dữ liệu cho từng ngày sẽ được JavaScript tạo ra tại đây -->
+      </div>
+
+      <!-- Khu vực tổng kết -->
+      <div id="summary-section" class="bg-blue-50 p-5 rounded-lg shadow-inner mb-6 border border-blue-200">
+        <h2 class="text-xl md:text-2xl font-bold text-blue-800 mb-4 text-center">Tổng Kết Tuần</h2>
+        <div class="space-y-3 text-lg md:text-xl">
+          <div class="flex justify-between items-center">
+            <span class="font-semibold text-gray-700">Tổng Doanh Thu:</span>
+            <span id="total-revenue" class="font-bold text-green-600">0 VNĐ</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-semibold text-gray-700">Tổng Chi Tiêu:</span>
+            <span id="total-expense" class="font-bold text-red-600">0 VNĐ</span>
+          </div>
+          <div class="flex justify-between items-center pt-3 border-t border-blue-300">
+            <span class="font-bold text-blue-800">Thu Nhập Ròng:</span>
+            <span id="net-income" class="font-bold text-blue-800">0 VNĐ</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Khu vực điều khiển (nút bấm) -->
+      <div class="controls flex flex-col sm:flex-row justify-center gap-4 mb-6">
+        <button id="save-btn"
+          class="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 transition duration-200 ease-in-out text-lg">
+          Lưu Dữ Liệu
+        </button>
+        <button id="load-btn"
+          class="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75 transition duration-200 ease-in-out text-lg">
+          Tải Dữ Liệu
+        </button>
+        <button id="clear-btn"
+          class="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition duration-200 ease-in-out text-lg">
+          Xóa Dữ Liệu
+        </button>
+      </div>
+
+      <!-- Hộp thông báo cho người dùng -->
+      <div id="message-box"
+        class="text-center text-lg font-medium py-3 rounded-lg transition-opacity duration-300 opacity-0">
+        <!-- Thông báo sẽ hiển thị ở đây -->
       </div>
     </div>
 
-    <script src="index.js"></script>
+    <script>
+      // Mảng chứa tên các ngày trong tuần
+      const daysOfWeek = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
+
+      // Mảng lưu trữ dữ liệu chi tiêu/doanh thu của tuần
+      // Mỗi phần tử là một đối tượng { revenue: number, expense: number }
+      let weeklyData = [];
+
+      // --- Các hàm tiện ích ---
+
+      // Hàm định dạng số thành tiền tệ (VNĐ)
+      function formatCurrency(amount) {
+        return new Intl.NumberFormat('vi-VN', {
+          style: 'currency',
+          currency: 'VND',
+          minimumFractionDigits: 0
+        }).format(amount);
+      }
+
+      // Hàm hiển thị thông báo tạm thời cho người dùng
+      function showMessage(message, type = 'info') {
+        const msgBox = document.getElementById('message-box');
+        msgBox.textContent = message;
+        msgBox.classList.remove('opacity-0', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'bg-blue-100', 'text-blue-700');
+
+        if (type === 'success') {
+          msgBox.classList.add('bg-green-100', 'text-green-700');
+        } else if (type === 'error') {
+          msgBox.classList.add('bg-red-100', 'text-red-700');
+        } else { // info
+          msgBox.classList.add('bg-blue-100', 'text-blue-700');
+        }
+        msgBox.classList.add('opacity-100');
+
+        setTimeout(() => {
+          msgBox.classList.remove('opacity-100');
+          msgBox.classList.add('opacity-0');
+        }, 3000); // Ẩn sau 3 giây
+      }
+
+      // --- Logic chính của ứng dụng ---
+
+      // Hàm khởi tạo dữ liệu tuần với giá trị 0
+      function initializeWeeklyData() {
+        weeklyData = daysOfWeek.map(() => ({ revenue: 0, expense: 0 }));
+      }
+
+      // Hàm tạo và hiển thị các trường nhập liệu cho từng ngày
+      function renderDailyInputs() {
+        const weekDataContainer = document.getElementById('week-data');
+        weekDataContainer.innerHTML = ''; // Xóa nội dung cũ trước khi render lại
+
+        daysOfWeek.forEach((dayName, index) => {
+          const dayEntry = document.createElement('div');
+          dayEntry.className = 'day-entry bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col space-y-2';
+
+          // Tên ngày
+          const dayTitle = document.createElement('h3');
+          dayTitle.className = 'text-lg md:text-xl font-semibold text-gray-800 text-center mb-2';
+          dayTitle.textContent = dayName;
+          dayEntry.appendChild(dayTitle);
+
+          // Input Doanh thu
+          const revenueLabel = document.createElement('label');
+          revenueLabel.className = 'text-gray-600 text-sm';
+          revenueLabel.textContent = 'Doanh thu (VNĐ):';
+          const revenueInput = document.createElement('input');
+          revenueInput.type = 'number';
+          revenueInput.min = '0';
+          revenueInput.value = weeklyData[index].revenue;
+          revenueInput.className = 'revenue-input w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-lg';
+          revenueInput.placeholder = 'Nhập doanh thu';
+          revenueInput.addEventListener('input', (event) => handleInputChange(event, index, 'revenue'));
+          dayEntry.appendChild(revenueLabel);
+          dayEntry.appendChild(revenueInput);
+
+          // Input Chi tiêu
+          const expenseLabel = document.createElement('label');
+          expenseLabel.className = 'text-gray-600 text-sm mt-2';
+          expenseLabel.textContent = 'Chi tiêu (VNĐ):';
+          const expenseInput = document.createElement('input');
+          expenseInput.type = 'number';
+          expenseInput.min = '0';
+          expenseInput.value = weeklyData[index].expense;
+          expenseInput.className = 'expense-input w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-lg';
+          expenseInput.placeholder = 'Nhập chi tiêu';
+          expenseInput.addEventListener('input', (event) => handleInputChange(event, index, 'expense'));
+          dayEntry.appendChild(expenseLabel);
+          dayEntry.appendChild(expenseInput);
+
+          weekDataContainer.appendChild(dayEntry);
+        });
+      }
+
+      // Hàm xử lý sự kiện khi giá trị input thay đổi
+      function handleInputChange(event, dayIndex, type) {
+        const value = parseInt(event.target.value) || 0; // Chuyển đổi sang số nguyên, nếu không phải số thì là 0
+        if (value < 0) { // Đảm bảo không nhập số âm
+          event.target.value = 0;
+          weeklyData[dayIndex][type] = 0;
+        } else {
+          weeklyData[dayIndex][type] = value;
+        }
+        calculateTotals(); // Tính toán lại tổng sau mỗi lần thay đổi
+      }
+
+      // Hàm tính toán tổng doanh thu, tổng chi tiêu và thu nhập ròng
+      function calculateTotals() {
+        let totalRevenue = 0;
+        let totalExpense = 0;
+
+        weeklyData.forEach(day => {
+          totalRevenue += day.revenue;
+          totalExpense += day.expense;
+        });
+
+        const netIncome = totalRevenue - totalExpense;
+
+        // Cập nhật giao diện tổng kết
+        document.getElementById('total-revenue').textContent = formatCurrency(totalRevenue);
+        document.getElementById('total-expense').textContent = formatCurrency(totalExpense);
+        document.getElementById('net-income').textContent = formatCurrency(netIncome);
+
+        // Thay đổi màu sắc thu nhập ròng
+        const netIncomeSpan = document.getElementById('net-income');
+        netIncomeSpan.classList.remove('text-green-600', 'text-red-600', 'text-blue-800');
+        if (netIncome > 0) {
+          netIncomeSpan.classList.add('text-green-600');
+        } else if (netIncome < 0) {
+          netIncomeSpan.classList.add('text-red-600');
+        } else {
+          netIncomeSpan.classList.add('text-blue-800');
+        }
+      }
+
+      // Hàm lưu dữ liệu vào Local Storage
+      function saveData() {
+        try {
+          localStorage.setItem('weeklyExpenseData', JSON.stringify(weeklyData));
+          showMessage('Dữ liệu đã được lưu thành công!', 'success');
+        } catch (e) {
+          showMessage('Lỗi khi lưu dữ liệu. Bộ nhớ trình duyệt có thể đầy.', 'error');
+          console.error("Lỗi khi lưu dữ liệu vào localStorage:", e);
+        }
+      }
+
+      // Hàm tải dữ liệu từ Local Storage
+      function loadData() {
+        try {
+          const storedData = localStorage.getItem('weeklyExpenseData');
+          if (storedData) {
+            weeklyData = JSON.parse(storedData);
+            renderDailyInputs(); // Render lại input với dữ liệu đã tải
+            calculateTotals(); // Tính toán lại tổng
+            showMessage('Dữ liệu đã được tải thành công!', 'success');
+          } else {
+            showMessage('Không tìm thấy dữ liệu đã lưu.', 'info');
+          }
+        } catch (e) {
+          showMessage('Lỗi khi tải dữ liệu. Dữ liệu lưu trữ có thể bị hỏng.', 'error');
+          console.error("Lỗi khi tải dữ liệu từ localStorage:", e);
+        }
+      }
+
+      // Hàm xóa dữ liệu và reset ứng dụng
+      function clearData() {
+        if (confirm('Bạn có chắc chắn muốn xóa tất cả dữ liệu? Hành động này không thể hoàn tác.')) {
+          localStorage.removeItem('weeklyExpenseData');
+          initializeWeeklyData(); // Khởi tạo lại dữ liệu về 0
+          renderDailyInputs(); // Render lại input trống
+          calculateTotals(); // Tính toán lại tổng về 0
+          showMessage('Tất cả dữ liệu đã được xóa!', 'info');
+        }
+      }
+
+      // --- Khởi tạo ứng dụng khi trang web tải xong ---
+      document.addEventListener('DOMContentLoaded', () => {
+        // Gắn sự kiện cho các nút
+        document.getElementById('save-btn').addEventListener('click', saveData);
+        document.getElementById('load-btn').addEventListener('click', loadData);
+        document.getElementById('clear-btn').addEventListener('click', clearData);
+
+        // Khởi tạo dữ liệu và tải nếu có
+        initializeWeeklyData();
+        loadData(); // Tải dữ liệu khi khởi động
+      });
+    </script>
   </body>
-
-
 
 </html>
